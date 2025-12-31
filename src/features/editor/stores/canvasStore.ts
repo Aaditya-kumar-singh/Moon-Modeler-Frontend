@@ -12,9 +12,10 @@ import {
     applyNodeChanges,
     applyEdgeChanges,
 } from 'reactflow';
-import { DiagramContent, TableNodeData, Field } from '@/types/diagram';
+import { DiagramContent, TableNodeData, Field, FieldMapping, EnhancedEdgeData } from '@/types/diagram';
 import { DiagramEvent } from '@/types/events';
 import { Socket } from 'socket.io-client';
+import { getSmartHandleIds } from '../utils/smartHandles';
 
 // Simple ID generator (UUID v4)
 const generateId = () => {
@@ -56,6 +57,7 @@ interface CanvasState {
     // Canvas Actions
     setInitialContent: (content: any) => void;
     addTable: () => void;
+    addNodeNextTo: (nodeId: string, direction: 'top' | 'bottom' | 'left' | 'right') => void;
     deleteNode: (nodeId: string) => void;
     selectNode: (nodeId: string | null) => void;
 
@@ -74,30 +76,101 @@ interface CanvasState {
     updateField: (nodeId: string, fieldId: string, updates: Partial<Field>) => void;
     deleteField: (nodeId: string, fieldId: string) => void;
 
+    // Edge/Relationship Actions
+    updateEdgeData: (edgeId: string, data: Partial<EnhancedEdgeData>) => void;
+    addFieldMapping: (edgeId: string, mapping: FieldMapping) => void;
+    removeFieldMapping: (edgeId: string, mappingIndex: number) => void;
+    deleteEdge: (edgeId: string) => void;
+
+    // Appearance
+    updateNodeColor: (nodeId: string, color: string) => void;
+    setTheme: (theme: any) => void;
+    setEdgeStyle: (style: any) => void;
+
+    // UI State
+    searchTerm: string;
+    setSearchTerm: (term: string) => void;
+
     // Getters
     getDiagramContent: () => DiagramContent;
+    getConnectedElements: (nodeId: string) => { nodeIds: string[], edgeIds: string[] };
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
     nodes: [],
     edges: [],
     selectedNodeId: null,
-    metadata: { version: 1, dbType: 'MYSQL', createdAt: '', updatedAt: '' },
+    metadata: { version: 1, dbType: 'MYSQL', createdAt: '', updatedAt: '', theme: 'default', edgeStyle: 'step' },
     projectId: null,
     past: [],
     future: [],
     socket: null,
+    searchTerm: '',
+
+    setSearchTerm: (term) => set({ searchTerm: term }),
 
     setSocket: (socket) => set({ socket }),
     setProjectId: (id) => set({ projectId: id }),
 
     onNodesChange: (changes: NodeChange[]) => {
-        set({
-            nodes: applyNodeChanges(changes, get().nodes),
+        const currentNodes = get().nodes;
+        const newNodes = applyNodeChanges(changes, currentNodes);
+
+        // --- Smart Handle Logic ---
+        // Identify which nodes moved (position change detected)
+        const movedNodeIds = new Set<string>();
+        changes.forEach(change => {
+            if (change.type === 'position' && change.dragging) {
+                movedNodeIds.add(change.id);
+            }
         });
-        // Note: Node position changes need to be broadcasted via onNodeDragStop logic ideally,
-        // or throttled here. For MVP, we'll implement explicit MOVE event handler if needed, 
-        // or just rely on 'snapshot' logic for drag start.
+
+        let newEdges = get().edges;
+
+        if (movedNodeIds.size > 0) {
+            let edgesChanged = false;
+
+            newEdges = newEdges.map(edge => {
+                // Only touch edges connected to moved nodes
+                if (!movedNodeIds.has(edge.source) && !movedNodeIds.has(edge.target)) {
+                    return edge;
+                }
+
+                // Only touch "Table-level" edges (heuristic: handle IDs contain 'source-' or 'target-' but not field IDs)
+                // We'll trust our new handle naming convention: "nodeId-source-top" etc.
+                const isTableHandle = (h?: string | null) => h && (h.includes('-source-') || h.includes('-target-') || h.includes('-table-'));
+                const isSmartEdge = isTableHandle(edge.sourceHandle) && isTableHandle(edge.targetHandle);
+
+                if (!isSmartEdge) return edge;
+
+                const sourceNode = newNodes.find(n => n.id === edge.source);
+                const targetNode = newNodes.find(n => n.id === edge.target);
+
+                if (!sourceNode || !targetNode) return edge;
+
+                const { sourceHandle, targetHandle } = getSmartHandleIds(sourceNode, targetNode);
+
+                if (edge.sourceHandle !== sourceHandle || edge.targetHandle !== targetHandle) {
+                    edgesChanged = true;
+                    return {
+                        ...edge,
+                        sourceHandle,
+                        targetHandle
+                    };
+                }
+
+                return edge;
+            });
+
+            if (edgesChanged) {
+                // Optimization: avoid re-setting edges if nothing changed
+            }
+        }
+
+        set({
+            nodes: newNodes,
+            edges: newEdges
+        });
     },
     onEdgesChange: (changes: EdgeChange[]) => {
         set({
@@ -105,12 +178,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         });
     },
     onConnect: (connection: Connection) => {
-        const newEdgeFn = addEdge(connection, get().edges);
         get().snapshot();
-        // TODO: Emit EDGE_ADDED event. Finding the new edge ID is tricky with standard addEdge.
-        // For now, local only.
+
+        // Find source and target nodes to suggest initial field mapping
+        const sourceNode = get().nodes.find(n => n.id === connection.source);
+        const targetNode = get().nodes.find(n => n.id === connection.target);
+
+        // Smart field suggestion: try to find primary key in source
+        const sourcePkField = sourceNode?.data.fields.find(f => f.isPrimaryKey);
+        const targetFirstField = targetNode?.data.fields[0];
+
+        // Create edge with initial field mapping
+        const newEdge: Edge = {
+            id: connection.source + '-' + connection.target + '-' + generateId().slice(0, 8),
+            source: connection.source!,
+            target: connection.target!,
+            sourceHandle: connection.sourceHandle,
+            targetHandle: connection.targetHandle,
+            type: 'fieldMapping',
+            data: {
+                fieldMappings: [{
+                    sourceField: sourcePkField?.name || sourceNode?.data.fields[0]?.name || 'id',
+                    targetField: targetFirstField?.name || 'id',
+                    relationshipType: '1:N',
+                }],
+                relationshipName: `${sourceNode?.data.label}-${targetNode?.data.label}`,
+                relationshipType: 'one-to-many',
+                showFields: true,
+                showCardinality: true
+            }
+        };
+
         set({
-            edges: addEdge(connection, get().edges),
+            edges: [...get().edges, newEdge],
         });
     },
 
@@ -239,6 +339,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
                     })
                 });
                 break;
+            case 'EDGE_ADDED':
+                set({ edges: [...edges, event.edge] });
+                break;
         }
     },
 
@@ -268,6 +371,80 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             actorId: 'local',
             timestamp: Date.now()
         });
+    },
+
+    addNodeNextTo: (sourceNodeId: string, direction: 'top' | 'bottom' | 'left' | 'right') => {
+        const sourceNode = get().nodes.find(n => n.id === sourceNodeId);
+        if (!sourceNode) return;
+
+        const id = generateId();
+        const dbType = get().metadata?.dbType || 'MYSQL';
+        const isMongo = dbType === 'MONGODB';
+        const offset = 250;
+
+        let position = { x: sourceNode.position.x, y: sourceNode.position.y };
+
+        switch (direction) {
+            case 'right': position.x += 300; break;
+            case 'left': position.x -= 300; break;
+            case 'bottom': position.y += 300; break;
+            case 'top': position.y -= 250; break;
+        }
+
+        const newNode: Node<TableNodeData> = {
+            id,
+            type: isMongo ? 'mongoCollection' : 'mysqlTable',
+            position,
+            data: {
+                label: isMongo ? `Collection ${get().nodes.length + 1}` : `Table ${get().nodes.length + 1}`,
+                fields: isMongo
+                    ? [{ id: generateId(), name: '_id', type: 'ObjectId', isPrimaryKey: true }]
+                    : [{ id: generateId(), name: 'id', type: 'INT', isPrimaryKey: true }]
+            },
+        };
+
+        // Add Node
+        get().handleLocalEvent({
+            type: 'NODE_ADDED',
+            node: newNode,
+            projectId: 'current',
+            actorId: 'local',
+            timestamp: Date.now()
+        });
+
+        // Add Edge
+        // Default connecting Primary Key to ID or similar
+        const sourcePk = sourceNode.data.fields.find(f => f.isPrimaryKey) || sourceNode.data.fields[0];
+        const targetPk = newNode.data.fields[0];
+
+        if (sourcePk && targetPk) {
+            const newEdge: Edge = {
+                id: `${sourceNodeId}-${id}-quick`,
+                source: sourceNodeId,
+                target: id,
+                sourceHandle: `${sourceNodeId}-source-${direction}`,
+                targetHandle: `${id}-target`, // fallback or specific handle
+                type: 'fieldMapping',
+                data: {
+                    fieldMappings: [{
+                        sourceField: sourcePk.name,
+                        targetField: targetPk.name,
+                        relationshipType: '1:N',
+                    }],
+                    relationshipName: `${sourceNode.data.label}-${newNode.data.label}`,
+                    relationshipType: 'one-to-many',
+                    showFields: true,
+                    showCardinality: true
+                }
+            };
+            get().handleLocalEvent({
+                type: 'EDGE_ADDED',
+                edge: newEdge,
+                projectId: 'current',
+                actorId: 'local',
+                timestamp: Date.now()
+            });
+        }
     },
 
     deleteNode: (nodeId: string) => {
@@ -339,6 +516,119 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         set({ selectedNodeId: nodeId });
     },
 
+    // --- Edge/Relationship Actions ---
+
+    updateEdgeData: (edgeId: string, data: Partial<EnhancedEdgeData>) => {
+        get().snapshot();
+        set((state) => ({
+            edges: state.edges.map(edge =>
+                edge.id === edgeId
+                    ? { ...edge, data: { ...edge.data, ...data } }
+                    : edge
+            )
+        }));
+
+        // Emit to WebSocket
+        const socket = get().socket;
+        if (socket) {
+            socket.emit('diagram-event', {
+                type: 'EDGE_DATA_UPDATED',
+                edgeId,
+                data,
+                projectId: get().projectId || 'unknown',
+                actorId: 'local',
+                timestamp: Date.now()
+            });
+        }
+    },
+
+    addFieldMapping: (edgeId: string, mapping: FieldMapping) => {
+        get().snapshot();
+        set((state) => ({
+            edges: state.edges.map(edge =>
+                edge.id === edgeId
+                    ? {
+                        ...edge,
+                        data: {
+                            ...edge.data,
+                            fieldMappings: [...(edge.data.fieldMappings || []), mapping]
+                        }
+                    }
+                    : edge
+            )
+        }));
+
+        // Emit to WebSocket
+        const socket = get().socket;
+        if (socket) {
+            socket.emit('diagram-event', {
+                type: 'FIELD_MAPPING_ADDED',
+                edgeId,
+                mapping,
+                projectId: get().projectId || 'unknown',
+                actorId: 'local',
+                timestamp: Date.now()
+            });
+        }
+    },
+
+    removeFieldMapping: (edgeId: string, mappingIndex: number) => {
+        get().snapshot();
+        set((state) => {
+            const edges = state.edges.map(edge => {
+                if (edge.id !== edgeId) return edge;
+
+                const updatedMappings = edge.data.fieldMappings?.filter(
+                    (_: any, i: number) => i !== mappingIndex
+                );
+
+                // If no mappings left, remove the edge entirely
+                if (!updatedMappings || updatedMappings.length === 0) {
+                    return null;
+                }
+
+                return {
+                    ...edge,
+                    data: { ...edge.data, fieldMappings: updatedMappings }
+                };
+            }).filter(Boolean) as Edge[];
+
+            return { edges };
+        });
+
+        // Emit to WebSocket
+        const socket = get().socket;
+        if (socket) {
+            socket.emit('diagram-event', {
+                type: 'FIELD_MAPPING_REMOVED',
+                edgeId,
+                mappingIndex,
+                projectId: get().projectId || 'unknown',
+                actorId: 'local',
+                timestamp: Date.now()
+            });
+        }
+    },
+
+    deleteEdge: (edgeId: string) => {
+        get().snapshot();
+        set((state) => ({
+            edges: state.edges.filter(edge => edge.id !== edgeId)
+        }));
+
+        // Emit to WebSocket
+        const socket = get().socket;
+        if (socket) {
+            socket.emit('diagram-event', {
+                type: 'EDGE_DELETED',
+                edgeId,
+                projectId: get().projectId || 'unknown',
+                actorId: 'local',
+                timestamp: Date.now()
+            });
+        }
+    },
+
     getDiagramContent: () => {
         const state = get();
         return {
@@ -348,6 +638,52 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
                 ...state.metadata,
                 updatedAt: new Date().toISOString()
             },
+        };
+    },
+
+    // --- Appearance Actions ---
+
+    updateNodeColor: (nodeId: string, color: string) => {
+        get().handleLocalEvent({
+            type: 'NODE_UPDATED',
+            nodeId,
+            changes: { color },
+            projectId: 'current',
+            actorId: 'local',
+            timestamp: Date.now()
+        }, true);
+    },
+
+    setTheme: (theme: any) => {
+        set(state => ({
+            metadata: { ...state.metadata, theme }
+        }));
+    },
+
+    setEdgeStyle: (edgeStyle: any) => {
+        set(state => ({
+            metadata: { ...state.metadata, edgeStyle }
+        }));
+    },
+
+    getConnectedElements: (nodeId: string) => {
+        const { edges } = get();
+        const connectedNodeIds = new Set<string>([nodeId]);
+        const connectedEdgeIds = new Set<string>();
+
+        edges.forEach(edge => {
+            if (edge.source === nodeId) {
+                connectedNodeIds.add(edge.target);
+                connectedEdgeIds.add(edge.id);
+            } else if (edge.target === nodeId) {
+                connectedNodeIds.add(edge.source);
+                connectedEdgeIds.add(edge.id);
+            }
+        });
+
+        return {
+            nodeIds: Array.from(connectedNodeIds),
+            edgeIds: Array.from(connectedEdgeIds)
         };
     },
 }));

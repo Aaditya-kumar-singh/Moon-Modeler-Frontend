@@ -24,6 +24,7 @@ export interface NodeUpdatedEvent extends BaseEvent {
     nodeId: string;
     changes: {
         label?: string;
+        color?: string;
         // other node-level props
     };
 }

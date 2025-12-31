@@ -6,8 +6,15 @@ interface ProjectsState {
     isLoading: boolean;
     error: string | null;
 
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+
     // Actions
-    fetchProjects: () => Promise<void>;
+    fetchProjects: (page?: number, limit?: number) => Promise<void>;
     createProject: (name: string, dbType: 'MYSQL' | 'MONGODB') => Promise<Project>;
     deleteProject: (id: string) => Promise<void>;
     clearError: () => void;
@@ -15,14 +22,19 @@ interface ProjectsState {
 
 export const useProjectsStore = create<ProjectsState>((set, get) => ({
     projects: [],
+    pagination: { page: 1, limit: 10, total: 0, totalPages: 0 },
     isLoading: false,
     error: null,
 
-    fetchProjects: async () => {
+    fetchProjects: async (page = 1, limit = 10) => {
         set({ isLoading: true, error: null });
         try {
-            const projects = await projectsApi.getAll();
-            set({ projects, isLoading: false });
+            const { projects, meta } = await projectsApi.getAll({ page, limit });
+            set({
+                projects,
+                pagination: meta,
+                isLoading: false
+            });
         } catch (error: any) {
             set({
                 error: error.message || 'Failed to fetch projects',

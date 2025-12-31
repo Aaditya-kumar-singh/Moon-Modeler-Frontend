@@ -21,13 +21,36 @@ interface ApiResponse<T> {
     data: T;
 }
 
+export interface PaginatedResponse<T> {
+    projects?: T[]; // for getAll
+    versions?: T[]; // for getVersions
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    };
+}
+
+export interface ProjectParams {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    type?: 'MYSQL' | 'MONGODB';
+}
+
 export const projectsApi = {
     /**
      * Get all projects for the current user
      */
-    async getAll(): Promise<Project[]> {
-        const { data } = await api.get<ApiResponse<Project[]>>('/projects');
-        return data.data;
+    async getAll(params: ProjectParams = {}): Promise<{ projects: Project[], meta: any }> {
+        const { data } = await api.get<ApiResponse<PaginatedResponse<Project>>>('/projects', { params });
+        // Backend returns { projects: [], meta: {} }
+        return {
+            projects: data.data.projects || [],
+            meta: data.data.meta
+        };
     },
 
     /**
@@ -64,8 +87,19 @@ export const projectsApi = {
     /**
      * Get version history for a project
      */
-    async getVersions(projectId: string): Promise<any[]> {
-        const { data } = await api.get<ApiResponse<any[]>>(`/projects/${projectId}/versions`);
+    async getVersions(projectId: string, params: { page?: number; limit?: number } = {}): Promise<{ versions: any[], meta: any }> {
+        const { data } = await api.get<ApiResponse<PaginatedResponse<any>>>(`/projects/${projectId}/versions`, { params });
+        return {
+            versions: data.data.versions || [],
+            meta: data.data.meta
+        };
+    },
+
+    /**
+     * Restore a project version
+     */
+    async restoreVersion(projectId: string, versionId: string): Promise<Project> {
+        const { data } = await api.post<ApiResponse<Project>>(`/projects/${projectId}/versions/${versionId}/restore`);
         return data.data;
     },
 

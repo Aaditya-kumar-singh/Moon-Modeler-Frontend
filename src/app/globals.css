@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 /* Design Tokens & Custom Properties */
+/* Tailwind CSS v4 theme directive - valid syntax */
+/* stylelint-disable-next-line at-rule-no-unknown */
 @theme {
   /* Primary Colors - Blue */
   --color-primary-50: #eff6ff;
@@ -9,16 +11,16 @@
   --color-primary-600: #2563eb;
   --color-primary-700: #1d4ed8;
   --color-primary-900: #1e3a8a;
-  
+
   /* Secondary Colors - Purple */
   --color-secondary-500: #8b5cf6;
   --color-secondary-600: #7c3aed;
-  
+
   /* Status Colors */
   --color-success: #10b981;
   --color-error: #ef4444;
   --color-warning: #f59e0b;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
@@ -62,6 +64,7 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .line-clamp-3 {
@@ -69,4 +72,69 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* React Flow - Animated Edges */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.animated-edge {
+  animation: dash 1s linear infinite;
+}
+
+/* React Flow - Field Handle Hover Effects */
+.react-flow__handle {
+  transition: all 0.2s ease;
+}
+
+.react-flow__handle:hover {
+  transform: scale(1.3);
+}
+
+/* React Flow - Edge Delete Buttons */
+.react-flow__edge-label button {
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: bold;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+}
+
+.react-flow__edge-label button:hover {
+  transform: scale(1.2);
+}
+
+/* React Flow - Edge Selection & Hover */
+.react-flow__edge {
+  cursor: pointer;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
+}
+
+.react-flow__edge:hover {
+  stroke: #3b82f6 !important;
+  stroke-width: 3 !important;
+}
+
+.react-flow__edge.selected {
+  stroke: #3b82f6 !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.5));
+}
+
+/* Edge Label Visibility */
+.react-flow__edge-label {
+  pointer-events: all;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.react-flow__edge-label:hover {
+  transform: scale(1.02);
+  z-index: 1000;
 }

@@ -11,7 +11,7 @@ export const useCollaboration = (projectId: string) => {
 
         setProjectId(projectId);
 
-        const socket: Socket = io('http://localhost:3000', {
+        const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002', {
             path: '/api/socket/io',
             addTrailingSlash: false,
         });

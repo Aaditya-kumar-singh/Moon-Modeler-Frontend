@@ -10,7 +10,7 @@ import CreateProjectDialog from '@/features/projects/components/CreateProjectDia
 
 export default function DashboardPage() {
     const router = useRouter();
-    const { projects, fetchProjects, createProject, isLoading, error } = useProjectsStore();
+    const { projects, pagination, fetchProjects, createProject, isLoading, error } = useProjectsStore();
     const [showCreateDialog, setShowCreateDialog] = useState(false);
 
     useEffect(() => {
@@ -21,7 +21,7 @@ export default function DashboardPage() {
         router.push(`/editor/${projectId}`);
     };
 
-    const handleCreateProject = async (name: string, dbType: 'mysql' | 'mongodb') => {
+    const handleCreateProject = async (name: string, dbType: 'MYSQL' | 'MONGODB') => {
         const project = await createProject(name, dbType);
         router.push(`/editor/${project.id}`);
     };
@@ -75,14 +75,39 @@ export default function DashboardPage() {
                     </div>
                 ) : (
                     /* Projects Grid */
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {projects.map(project => (
-                            <ProjectCard
-                                key={project.id}
-                                project={project}
-                                onClick={() => handleProjectClick(project.id)}
-                            />
-                        ))}
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {projects.map(project => (
+                                <ProjectCard
+                                    key={project.id}
+                                    project={project}
+                                    onClick={() => handleProjectClick(project.id)}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {pagination.totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-4 py-4">
+                                <Button
+                                    variant="outline"
+                                    disabled={pagination.page <= 1}
+                                    onClick={() => fetchProjects(pagination.page - 1)}
+                                >
+                                    Previous
+                                </Button>
+                                <span className="text-sm text-gray-600">
+                                    Page {pagination.page} of {pagination.totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    disabled={pagination.page >= pagination.totalPages}
+                                    onClick={() => fetchProjects(pagination.page + 1)}
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

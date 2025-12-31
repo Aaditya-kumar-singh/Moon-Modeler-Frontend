@@ -3,12 +3,14 @@
 import { useCanvasStore } from '../stores/canvasStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, X } from 'lucide-react';
+import { Trash2, Plus, X, Link2, Unlink } from 'lucide-react';
 import { DataType } from '@/types/diagram';
+import { cn } from '@/lib/utils/cn';
 
 export default function PropertiesPanel() {
     const {
         nodes,
+        edges,
         selectedNodeId,
         updateTableName,
         addField,
@@ -16,7 +18,9 @@ export default function PropertiesPanel() {
         updateField,
         deleteNode,
         selectNode,
-        snapshot // Undo/Redo snapshot
+        onEdgesChange,
+        snapshot, // Undo/Redo snapshot,
+        metadata
     } = useCanvasStore();
 
     const selectedNode = nodes.find((n) => n.id === selectedNodeId);
@@ -29,9 +33,63 @@ export default function PropertiesPanel() {
         fields: isMongo ? 'Fields' : 'Columns',
     };
 
+    // Theme Logic for Side Panel
+    // Helper to get consistent theme styles
+    const getThemeStyles = () => {
+        const theme = metadata?.theme || 'default';
+        switch (theme) {
+            case 'dark':
+                return {
+                    container: 'bg-slate-900 border-slate-700',
+                    header: 'bg-slate-900 border-slate-700',
+                    text: 'text-slate-200',
+                    subText: 'text-slate-400',
+                    input: 'bg-slate-800 border-slate-600 text-slate-200 focus:ring-blue-500',
+                    card: 'bg-slate-800 border-slate-700',
+                    cardInput: 'bg-slate-900 border-slate-700 text-slate-200',
+                    button: 'text-slate-400 hover:text-red-400',
+                };
+            case 'ocean':
+                return {
+                    container: 'bg-white border-cyan-100',
+                    header: 'bg-cyan-50/50 border-cyan-100',
+                    text: 'text-cyan-900',
+                    subText: 'text-cyan-600',
+                    input: 'bg-cyan-50 border-cyan-200 text-cyan-900 focus:ring-cyan-500',
+                    card: 'bg-cyan-50/30 border-cyan-100',
+                    cardInput: 'bg-white border-cyan-200 text-cyan-900',
+                    button: 'text-cyan-400 hover:text-red-500',
+                };
+            case 'sunset':
+                return {
+                    container: 'bg-white border-orange-100',
+                    header: 'bg-orange-50/50 border-orange-100',
+                    text: 'text-orange-900',
+                    subText: 'text-orange-600',
+                    input: 'bg-orange-50 border-orange-200 text-orange-900 focus:ring-orange-500',
+                    card: 'bg-orange-50/30 border-orange-100',
+                    cardInput: 'bg-white border-orange-200 text-orange-900',
+                    button: 'text-orange-400 hover:text-red-500',
+                };
+            default:
+                return {
+                    container: 'bg-white border-gray-200',
+                    header: 'bg-gray-50 border-gray-100',
+                    text: 'text-gray-700',
+                    subText: 'text-gray-500',
+                    input: 'bg-gray-50 border-gray-200 font-medium text-gray-900',
+                    card: 'bg-gray-50 border-gray-100',
+                    cardInput: 'bg-white border-gray-200 text-sm',
+                    button: 'text-gray-400 hover:text-red-500',
+                };
+        }
+    };
+
+    const styles = getThemeStyles();
+
     if (!selectedNode) {
         return (
-            <div className="w-80 bg-white border-l border-gray-200 p-6 flex flex-col items-center justify-center text-gray-400">
+            <div className={cn("w-80 h-full border-l p-6 flex flex-col items-center justify-center transition-colors duration-300", styles.container, styles.subText)}>
                 <p>Select a {terms.entity.toLowerCase()} to edit properties</p>
             </div>
         );
@@ -62,16 +120,64 @@ export default function PropertiesPanel() {
         action();
     };
 
+    // Helper to find connections for a specific field
+    const getFieldConnections = (nodeId: string, fieldName: string) => {
+        const connections = edges.filter(edge => {
+            // Check if edge involves this node
+            const isFromThisNode = edge.source === nodeId;
+            const isToThisNode = edge.target === nodeId;
+
+            if (!isFromThisNode && !isToThisNode) return false;
+
+            // Check if field name is in the handle ID
+            // Handles are like: "nodeId-fieldName-source" or "nodeId-fieldName-target"
+            const sourceHasField = edge.sourceHandle?.includes(`-${fieldName}-`);
+            const targetHasField = edge.targetHandle?.includes(`-${fieldName}-`);
+
+            return (isFromThisNode && sourceHasField) || (isToThisNode && targetHasField);
+        });
+
+        /* console.log(`Checking field "${fieldName}" in node "${nodeId}":`, {
+            totalEdges: edges.length,
+            foundConnections: connections.length,
+            connections: connections.map(c => ({
+                id: c.id,
+                source: c.source,
+                target: c.target,
+                sourceHandle: c.sourceHandle,
+                targetHandle: c.targetHandle
+            }))
+        }); */
+
+        return connections;
+    };
+
+    // Remove all connections for a specific field
+    const removeFieldConnections = (nodeId: string, fieldName: string) => {
+        const fieldConnections = getFieldConnections(nodeId, fieldName);
+        console.log(`Removing ${fieldConnections.length} connections for field "${fieldName}"`);
+
+        if (fieldConnections.length > 0) {
+            snapshot();
+            onEdgesChange(
+                fieldConnections.map(edge => ({
+                    type: 'remove',
+                    id: edge.id
+                }))
+            );
+        }
+    };
+
     return (
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full overflow-hidden shadow-xl z-20">
+        <div className={cn("w-80 border-l flex flex-col h-full overflow-hidden shadow-xl z-20 transition-colors duration-300", styles.container)}>
             {/* Header */}
-            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">{terms.entity} Properties</h3>
+            <div className={cn("p-4 border-b flex items-center justify-between transition-colors", styles.header)}>
+                <h3 className={cn("font-semibold text-sm", styles.text)}>{terms.entity} Properties</h3>
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => selectNode(null)}
-                    className="h-6 w-6 p-0"
+                    className={cn("h-6 w-6 p-0", styles.button)}
                 >
                     <X className="w-4 h-4" />
                 </Button>
@@ -80,14 +186,14 @@ export default function PropertiesPanel() {
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {/* Table/Collection Name */}
                 <div className="space-y-2">
-                    <label className="text-xs font-semibold text-gray-500 uppercase">{terms.entity} Name</label>
+                    <label className={cn("text-xs font-semibold uppercase", styles.subText)}>{terms.entity} Name</label>
                     <div className="flex gap-2">
                         <Input
                             value={selectedNode.data.label}
                             onFocus={handleFocus}
                             onChange={(e) => updateTableName(selectedNodeId!, e.target.value)}
                             placeholder={isMongo ? 'users' : 'users'}
-                            className="bg-gray-50 font-medium"
+                            className={cn("font-medium transition-colors", styles.input)}
                         />
                         <Button
                             variant="destructive"
@@ -104,11 +210,11 @@ export default function PropertiesPanel() {
                 {/* Fields */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-gray-500 uppercase">{terms.fields}</label>
+                        <label className={cn("text-xs font-semibold uppercase", styles.subText)}>{terms.fields}</label>
                         <Button
                             size="sm"
                             variant="outline"
-                            className="h-6 text-xs"
+                            className={cn("h-6 text-xs transition-colors", styles.button, styles.card)}
                             onClick={() => addField(selectedNodeId!)}
                         >
                             <Plus className="w-3 h-3 mr-1" />
@@ -117,66 +223,86 @@ export default function PropertiesPanel() {
                     </div>
 
                     <div className="space-y-2">
-                        {selectedNode.data.fields && selectedNode.data.fields.map((field) => (
-                            <div key={field.id} className="p-3 bg-gray-50 rounded-md border border-gray-100 group hover:border-blue-200 transition-colors">
-                                {/* Top Row: Name & Delete */}
-                                <div className="flex gap-2 mb-2">
-                                    <Input
-                                        value={field.name}
-                                        onFocus={handleFocus}
-                                        onChange={(e) => updateField(selectedNodeId!, field.id, { name: e.target.value })}
-                                        className="h-7 text-sm bg-white"
-                                        placeholder={terms.field.toLowerCase()}
-                                    />
-                                    <button
-                                        className="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                        onClick={() => deleteField(selectedNodeId!, field.id)}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
+                        {selectedNode.data.fields && selectedNode.data.fields.map((field) => {
+                            const fieldConnections = getFieldConnections(selectedNodeId!, field.name);
+                            const hasConnections = fieldConnections.length > 0;
 
-                                {/* Bottom Row: Type & Flags */}
-                                <div className="flex gap-2 items-center">
-                                    <select
-                                        value={field.type}
-                                        onFocus={handleFocus} // Capture state before changing dropdown
-                                        onChange={(e) => updateField(selectedNodeId!, field.id, { type: e.target.value as DataType })}
-                                        className="h-7 text-xs border border-gray-300 rounded px-1 bg-white flex-1 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                    >
-                                        {currentDataTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                            return (
+                                <div key={field.id} className={cn("p-3 rounded-md border group transition-colors", styles.card)}>
+                                    {/* Top Row: Name & Actions */}
+                                    <div className="flex gap-2 mb-2">
+                                        <Input
+                                            value={field.name}
+                                            onFocus={handleFocus}
+                                            onChange={(e) => updateField(selectedNodeId!, field.id, { name: e.target.value })}
+                                            className={cn("h-7 text-sm flex-1 transition-colors", styles.cardInput)}
+                                            placeholder={terms.field.toLowerCase()}
+                                        />
 
-                                    <div className="flex gap-1">
-                                        {!isMongo && (
-                                            <>
-                                                <button
-                                                    title="Primary Key"
-                                                    className={`p-1 rounded ${field.isPrimaryKey ? 'bg-yellow-100 text-yellow-600' : 'text-gray-300 hover:bg-gray-200'}`}
-                                                    onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isPrimaryKey: !field.isPrimaryKey }))}
-                                                >
-                                                    <span className="text-[10px] font-bold">PK</span>
-                                                </button>
-                                                <button
-                                                    title="Foreign Key"
-                                                    className={`p-1 rounded ${field.isForeignKey ? 'bg-blue-100 text-blue-600' : 'text-gray-300 hover:bg-gray-200'}`}
-                                                    onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isForeignKey: !field.isForeignKey }))}
-                                                >
-                                                    <span className="text-[10px] font-bold">FK</span>
-                                                </button>
-                                            </>
+                                        {/* Connection Indicator & Remove Button */}
+                                        {hasConnections && (
+                                            <button
+                                                className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors whitespace-nowrap"
+                                                onClick={() => removeFieldConnections(selectedNodeId!, field.name)}
+                                                title={`Remove ${fieldConnections.length} connection(s)`}
+                                            >
+                                                <Link2 className="w-3 h-3" />
+                                                <span>{fieldConnections.length}</span>
+                                                <Unlink className="w-3 h-3" />
+                                            </button>
                                         )}
+
                                         <button
-                                            title={isMongo ? "Optional" : "Nullable"}
-                                            className={`p-1 rounded ${field.isNullable ? 'bg-purple-100 text-purple-600' : 'text-gray-300 hover:bg-gray-200'}`}
-                                            onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isNullable: !field.isNullable }))}
+                                            className={cn("transition-colors opacity-0 group-hover:opacity-100", styles.button)}
+                                            onClick={() => deleteField(selectedNodeId!, field.id)}
+                                            title="Delete field"
                                         >
-                                            <span className="text-[10px] font-bold">?</span>
+                                            <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
+
+                                    {/* Bottom Row: Type & Flags */}
+                                    <div className="flex gap-2 items-center">
+                                        <select
+                                            value={field.type}
+                                            onFocus={handleFocus}
+                                            onChange={(e) => updateField(selectedNodeId!, field.id, { type: e.target.value as DataType })}
+                                            className={cn("h-7 text-xs border rounded px-1 flex-1 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors", styles.cardInput)}
+                                        >
+                                            {currentDataTypes.map(t => <option key={t} value={t} className="text-black">{t}</option>)}
+                                        </select>
+
+                                        <div className="flex gap-1">
+                                            {!isMongo && (
+                                                <>
+                                                    <button
+                                                        title="Primary Key"
+                                                        className={`p-1 rounded ${field.isPrimaryKey ? 'bg-yellow-100 text-yellow-600' : (metadata?.theme === 'dark' ? 'text-slate-600 hover:bg-slate-700' : 'text-gray-300 hover:bg-gray-200')}`}
+                                                        onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isPrimaryKey: !field.isPrimaryKey }))}
+                                                    >
+                                                        <span className="text-[10px] font-bold">PK</span>
+                                                    </button>
+                                                    <button
+                                                        title="Foreign Key"
+                                                        className={`p-1 rounded ${field.isForeignKey ? 'bg-blue-100 text-blue-600' : (metadata?.theme === 'dark' ? 'text-slate-600 hover:bg-slate-700' : 'text-gray-300 hover:bg-gray-200')}`}
+                                                        onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isForeignKey: !field.isForeignKey }))}
+                                                    >
+                                                        <span className="text-[10px] font-bold">FK</span>
+                                                    </button>
+                                                </>
+                                            )}
+                                            <button
+                                                title={isMongo ? "Optional" : "Nullable"}
+                                                className={`p-1 rounded ${field.isNullable ? 'bg-purple-100 text-purple-600' : (metadata?.theme === 'dark' ? 'text-slate-600 hover:bg-slate-700' : 'text-gray-300 hover:bg-gray-200')}`}
+                                                onClick={() => handleAtomicUpdate(() => updateField(selectedNodeId!, field.id, { isNullable: !field.isNullable }))}
+                                            >
+                                                <span className="text-[10px] font-bold">?</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>

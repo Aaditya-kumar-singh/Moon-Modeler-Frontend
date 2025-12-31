@@ -9,7 +9,9 @@ import DiagramEditor from '@/features/editor/components/DiagramEditor';
 import PropertiesPanel from '@/features/editor/components/PropertiesPanel';
 import ImportDialog from '@/features/editor/components/ImportDialog';
 import { useCanvasStore } from '@/features/editor/stores/canvasStore';
-import { Loader2, Download, Database } from 'lucide-react';
+import { Loader2, Download, Database, Code, Search } from 'lucide-react';
+import CodePreviewPanel from '@/features/editor/components/CodePreviewPanel';
+import { cn } from '@/lib/utils/cn';
 
 export default function EditorPage() {
     const params = useParams();
@@ -20,6 +22,10 @@ export default function EditorPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const [codePreviewOpen, setCodePreviewOpen] = useState(false);
+
+    // Single declaration
+    const { metadata } = useCanvasStore();
 
     const handleSave = async () => {
         setSaving(true);
@@ -109,34 +115,125 @@ export default function EditorPage() {
         );
     }
 
+    // Theme Logic for App Shell
+    const getThemeStyles = () => {
+        const theme = metadata?.theme || 'default';
+        switch (theme) {
+            case 'dark':
+                return {
+                    container: 'bg-slate-900',
+                    toolbar: 'bg-slate-900 border-slate-700',
+                    text: 'text-slate-100',
+                    subText: 'text-slate-400',
+                    border: 'border-slate-700',
+                    input: 'bg-slate-800 border-slate-600 text-slate-200 focus:ring-blue-500 hover:bg-slate-700',
+                    button: 'border-slate-600 text-slate-200 hover:bg-slate-800 hover:text-white',
+                    icon: 'text-slate-400'
+                };
+            case 'ocean':
+                return {
+                    container: 'bg-cyan-50/30',
+                    toolbar: 'bg-white border-cyan-100',
+                    text: 'text-cyan-900',
+                    subText: 'text-cyan-600',
+                    border: 'border-cyan-100',
+                    input: 'bg-cyan-50 border-cyan-200 text-cyan-900 focus:ring-cyan-500 hover:bg-white',
+                    button: 'border-cyan-200 text-cyan-700 hover:bg-cyan-50 hover:text-cyan-900',
+                    icon: 'text-cyan-400'
+                };
+            case 'sunset':
+                return {
+                    container: 'bg-orange-50/30',
+                    toolbar: 'bg-white border-orange-100',
+                    text: 'text-orange-900',
+                    subText: 'text-orange-600',
+                    border: 'border-orange-100',
+                    input: 'bg-orange-50 border-orange-200 text-orange-900 focus:ring-orange-500 hover:bg-white',
+                    button: 'border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-900',
+                    icon: 'text-orange-400'
+                };
+            default:
+                return {
+                    container: 'bg-white',
+                    toolbar: 'bg-white border-gray-200',
+                    text: 'text-gray-900',
+                    subText: 'text-gray-500',
+                    border: 'border-gray-200',
+                    input: 'bg-gray-50 border-gray-200 text-gray-700 focus:ring-blue-500 hover:bg-white',
+                    button: 'border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900',
+                    icon: 'text-gray-400'
+                };
+        }
+    };
+
+    const styles = getThemeStyles();
+
     return (
-        <div className="h-screen flex flex-col bg-white">
-            {/* Toolbar Header Placeholder */}
-            <div className="h-14 border-b flex items-center px-4 justify-between bg-white">
+        <div className={cn("h-screen flex flex-col transition-colors duration-300", styles.container)}>
+            {/* Toolbar Header */}
+            <div className={cn("h-14 border-b flex items-center px-4 justify-between transition-colors duration-300", styles.toolbar)}>
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-                        <ArrowLeft className="w-4 h-4 mr-2" />
+                    <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')} className={styles.text}>
+                        <ArrowLeft className={cn("w-4 h-4 mr-2", styles.icon)} />
                         Back
                     </Button>
                     <div>
-                        <h1 className="font-semibold text-gray-900">{project.name}</h1>
-                        <span className="text-xs text-gray-500 uppercase">{project.type}</span>
+                        <h1 className={cn("font-semibold transition-colors", styles.text)}>{project?.name}</h1>
+                        <span className={cn("text-xs uppercase transition-colors", styles.subText)}>{project?.type}</span>
                     </div>
                 </div>
                 <div>
                     {/* Toolbar Actions */}
-                    <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="mr-2">
-                        <Database className="w-4 h-4 mr-2" />
+                    <div className={cn("inline-flex items-center gap-2 mr-4 border-r pr-4", styles.border)}>
+                        <select
+                            className={cn("text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 transition-all cursor-pointer", styles.input)}
+                            value={metadata?.theme || 'default'}
+                            onChange={(e) => useCanvasStore.getState().setTheme(e.target.value)}
+                            title="Theme"
+                        >
+                            <option value="default">Theme: Default</option>
+                            <option value="ocean">Theme: Ocean</option>
+                            <option value="sunset">Theme: Sunset</option>
+                            <option value="dark">Theme: Dark</option>
+                        </select>
+                        <select
+                            className={cn("text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 transition-all cursor-pointer", styles.input)}
+                            value={metadata?.edgeStyle || 'step'}
+                            onChange={(e) => useCanvasStore.getState().setEdgeStyle(e.target.value)}
+                            title="Edge Style"
+                        >
+                            <option value="step">Lines: Step</option>
+                            <option value="bezier">Lines: Bezier</option>
+                            <option value="straight">Lines: Straight</option>
+                        </select>
+                    </div>
+
+                    <div className="relative mr-4">
+                        <Search className={cn("w-4 h-4 absolute left-2 top-1.5", styles.icon)} />
+                        <input
+                            type="text"
+                            placeholder="Search nodes..."
+                            className={cn("pl-8 pr-4 py-1 text-xs border rounded focus:outline-none focus:ring-1 transition-colors w-32 focus:w-56 transition-all", styles.input)}
+                            onChange={(e) => useCanvasStore.getState().setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <Button variant="outline" size="sm" onClick={() => setCodePreviewOpen(!codePreviewOpen)} className={cn("mr-2 transition-colors", styles.button)}>
+                        <Code className={cn("w-4 h-4 mr-2", styles.icon)} />
+                        Code
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className={cn("mr-2 transition-colors", styles.button)}>
+                        <Database className={cn("w-4 h-4 mr-2", styles.icon)} />
                         Import
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleExport} className="mr-2">
-                        <Download className="w-4 h-4 mr-2" />
+                    <Button variant="outline" size="sm" onClick={handleExport} className={cn("mr-2 transition-colors", styles.button)}>
+                        <Download className={cn("w-4 h-4 mr-2", styles.icon)} />
                         Export
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
+                    <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className={cn("transition-colors", styles.button)}>
                         {saving ? (
                             <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <Loader2 className={cn("w-4 h-4 mr-2 animate-spin", styles.icon)} />
                                 Saving...
                             </>
                         ) : 'Save'}
@@ -145,7 +242,7 @@ export default function EditorPage() {
             </div>
 
 
-            <div className="flex-1 bg-gray-50 relative overflow-hidden flex">
+            <div className={cn("flex-1 relative overflow-hidden flex", styles.container)}>
                 <div className="flex-1 relative">
                     <DiagramEditor projectId={id} initialContent={{
                         ...project.content,
@@ -169,6 +266,7 @@ export default function EditorPage() {
                     />
                 )
             }
+            <CodePreviewPanel open={codePreviewOpen} onClose={() => setCodePreviewOpen(false)} />
         </div >
     );
 }
