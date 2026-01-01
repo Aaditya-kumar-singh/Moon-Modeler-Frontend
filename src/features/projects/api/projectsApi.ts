@@ -117,5 +117,33 @@ export const projectsApi = {
     async importFromDb(type: 'MYSQL' | 'MONGODB', connectionString: string): Promise<any> {
         const { data } = await api.post<ApiResponse<any>>('/import', { type, connectionString });
         return data.data;
+    },
+
+    // --- Collaboration ---
+
+    async share(projectId: string, email: string, role: 'EDITOR' | 'VIEWER'): Promise<any> {
+        const { data } = await api.post<ApiResponse<any>>(`/projects/${projectId}/share`, { email, role });
+        return data.data;
+    },
+
+    async getCollaborators(projectId: string): Promise<Collaborator[]> {
+        const { data } = await api.get<ApiResponse<Collaborator[]>>(`/projects/${projectId}/collaborators`);
+        return data.data;
+    },
+
+    async removeCollaborator(projectId: string, userId: string): Promise<void> {
+        await api.delete(`/projects/${projectId}/collaborators/${userId}`);
     }
 };
+
+export interface Collaborator {
+    id: string;
+    projectId: string;
+    userId: string;
+    role: 'EDITOR' | 'VIEWER';
+    user: {
+        id: string;
+        name: string;
+        email: string;
+    };
+}

@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { useCanvasStore } from '../stores/canvasStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, X, Link2, Unlink } from 'lucide-react';
+import { Trash2, Plus, X, Link2, Unlink, AlertCircle } from 'lucide-react';
 import { DataType } from '@/types/diagram';
 import { cn } from '@/lib/utils/cn';
+import { validateTableName, validateFieldName } from '@/lib/utils/validate';
 
 export default function PropertiesPanel() {
     const {
@@ -22,6 +24,8 @@ export default function PropertiesPanel() {
         snapshot, // Undo/Redo snapshot,
         metadata
     } = useCanvasStore();
+
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
     const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
@@ -89,7 +93,11 @@ export default function PropertiesPanel() {
 
     if (!selectedNode) {
         return (
-            <div className={cn("w-80 h-full border-l p-6 flex flex-col items-center justify-center transition-colors duration-300", styles.container, styles.subText)}>
+            <div className={cn(
+                "hidden md:flex w-80 h-full border-l p-6 flex-col items-center justify-center transition-colors duration-300",
+                styles.container,
+                styles.subText
+            )}>
                 <p>Select a {terms.entity.toLowerCase()} to edit properties</p>
             </div>
         );
@@ -130,25 +138,11 @@ export default function PropertiesPanel() {
             if (!isFromThisNode && !isToThisNode) return false;
 
             // Check if field name is in the handle ID
-            // Handles are like: "nodeId-fieldName-source" or "nodeId-fieldName-target"
             const sourceHasField = edge.sourceHandle?.includes(`-${fieldName}-`);
             const targetHasField = edge.targetHandle?.includes(`-${fieldName}-`);
 
             return (isFromThisNode && sourceHasField) || (isToThisNode && targetHasField);
         });
-
-        /* console.log(`Checking field "${fieldName}" in node "${nodeId}":`, {
-            totalEdges: edges.length,
-            foundConnections: connections.length,
-            connections: connections.map(c => ({
-                id: c.id,
-                source: c.source,
-                target: c.target,
-                sourceHandle: c.sourceHandle,
-                targetHandle: c.targetHandle
-            }))
-        }); */
-
         return connections;
     };
 
@@ -168,8 +162,23 @@ export default function PropertiesPanel() {
         }
     };
 
+    const handleTableNameChange = (val: string) => {
+        const { isValid, error } = validateTableName(val);
+        setErrors(prev => ({ ...prev, tableName: isValid ? '' : error! }));
+        updateTableName(selectedNodeId!, val);
+    };
+
+    const handleFieldNameChange = (fieldId: string, val: string) => {
+        const { isValid, error } = validateFieldName(val);
+        setErrors(prev => ({ ...prev, [fieldId]: isValid ? '' : error! }));
+        updateField(selectedNodeId!, fieldId, { name: val });
+    };
+
     return (
-        <div className={cn("w-80 border-l flex flex-col h-full overflow-hidden shadow-xl z-20 transition-colors duration-300", styles.container)}>
+        <div className={cn(
+            "fixed inset-x-0 bottom-0 h-[60vh] md:static md:h-full md:w-80 border-t md:border-t-0 md:border-l flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] md:shadow-xl z-40 transition-colors duration-300",
+            styles.container
+        )}>
             {/* Header */}
             <div className={cn("p-4 border-b flex items-center justify-between transition-colors", styles.header)}>
                 <h3 className={cn("font-semibold text-sm", styles.text)}>{terms.entity} Properties</h3>
@@ -178,6 +187,7 @@ export default function PropertiesPanel() {
                     size="sm"
                     onClick={() => selectNode(null)}
                     className={cn("h-6 w-6 p-0", styles.button)}
+                    aria-label="Close properties panel"
                 >
                     <X className="w-4 h-4" />
                 </Button>
@@ -191,9 +201,13 @@ export default function PropertiesPanel() {
                         <Input
                             value={selectedNode.data.label}
                             onFocus={handleFocus}
-                            onChange={(e) => updateTableName(selectedNodeId!, e.target.value)}
+                            onChange={(e) => handleTableNameChange(e.target.value)}
                             placeholder={isMongo ? 'users' : 'users'}
-                            className={cn("font-medium transition-colors", styles.input)}
+                            className={cn(
+                                "font-medium transition-colors",
+                                styles.input,
+                                errors.tableName && "border-red-500 ring-red-500 focus:ring-red-500"
+                            )}
                         />
                         <Button
                             variant="destructive"
@@ -205,6 +219,12 @@ export default function PropertiesPanel() {
                             <Trash2 className="w-4 h-4" />
                         </Button>
                     </div>
+                    {errors.tableName && (
+                        <p className="text-[10px] text-red-500 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {errors.tableName}
+                        </p>
+                    )}
                 </div>
 
                 {/* Fields */}
@@ -226,6 +246,7 @@ export default function PropertiesPanel() {
                         {selectedNode.data.fields && selectedNode.data.fields.map((field) => {
                             const fieldConnections = getFieldConnections(selectedNodeId!, field.name);
                             const hasConnections = fieldConnections.length > 0;
+                            const fieldError = errors[field.id];
 
                             return (
                                 <div key={field.id} className={cn("p-3 rounded-md border group transition-colors", styles.card)}>
@@ -234,8 +255,12 @@ export default function PropertiesPanel() {
                                         <Input
                                             value={field.name}
                                             onFocus={handleFocus}
-                                            onChange={(e) => updateField(selectedNodeId!, field.id, { name: e.target.value })}
-                                            className={cn("h-7 text-sm flex-1 transition-colors", styles.cardInput)}
+                                            onChange={(e) => handleFieldNameChange(field.id, e.target.value)}
+                                            className={cn(
+                                                "h-7 text-sm flex-1 transition-colors",
+                                                styles.cardInput,
+                                                fieldError && "border-red-500 ring-red-500 focus:ring-red-500"
+                                            )}
                                             placeholder={terms.field.toLowerCase()}
                                         />
 
@@ -256,10 +281,18 @@ export default function PropertiesPanel() {
                                             className={cn("transition-colors opacity-0 group-hover:opacity-100", styles.button)}
                                             onClick={() => deleteField(selectedNodeId!, field.id)}
                                             title="Delete field"
+                                            aria-label="Delete field"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
+
+                                    {fieldError && (
+                                        <p className="text-[10px] text-red-500 mb-2 flex items-center gap-1">
+                                            <AlertCircle className="w-3 h-3" />
+                                            {fieldError}
+                                        </p>
+                                    )}
 
                                     {/* Bottom Row: Type & Flags */}
                                     <div className="flex gap-2 items-center">

@@ -17,6 +17,7 @@ export default function CodePreviewPanel({ open, onClose }: CodePreviewPanelProp
     const [copied, setCopied] = useState(false);
 
     const code = useMemo(() => {
+        if (!open) return '';
         if (!nodes.length) return '-- Start designing to see code';
 
         if (metadata.dbType === 'MONGODB') {
@@ -24,7 +25,7 @@ export default function CodePreviewPanel({ open, onClose }: CodePreviewPanelProp
         } else {
             return generateMySQL(nodes, edges);
         }
-    }, [nodes, edges, metadata.dbType]);
+    }, [nodes, edges, metadata.dbType, open]);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(code);

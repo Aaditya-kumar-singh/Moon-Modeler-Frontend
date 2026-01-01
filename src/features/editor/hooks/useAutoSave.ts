@@ -6,7 +6,7 @@ import { projectsApi } from '@/features/projects/api/projectsApi';
  * Hook to auto-save diagram content to the backend.
  * Uses a debounce mechanism to prevent excessive API calls.
  */
-export function useAutoSave(projectId: string) {
+export function useAutoSave(projectId: string, isEnabled: boolean = true) {
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastSavedHash = useRef<string>('');
     const isFirstLoad = useRef<boolean>(true);
@@ -16,7 +16,7 @@ export function useAutoSave(projectId: string) {
         // Subscribe to store updates
         // We only persist nodes, edges, and metadata
         const unsub = useCanvasStore.subscribe((state) => {
-            if (!projectId) return;
+            if (!isEnabled || !projectId || projectId === 'local-draft') return;
 
             // Clear existing timer
             if (saveTimeoutRef.current) {

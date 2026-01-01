@@ -16,10 +16,18 @@ import RelationshipEditor from './dialogs/RelationshipEditor';
 import SchemaInboxPanel from './dialogs/SchemaInboxPanel';
 import { useCanvasStore } from '../stores/canvasStore';
 import { Button } from '@/components/ui/button';
-import { Plus, FileInput, History, Database } from 'lucide-react';
+import { projectsApi } from '@/features/projects/api/projectsApi';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, FileInput, History, Database, Menu } from 'lucide-react';
 import VersionHistoryPanel from './dialogs/VersionHistoryPanel';
 import ImportDialog from './ImportDialog';
-import { projectsApi } from '@/features/projects/api/projectsApi';
 
 import { toast } from 'sonner';
 import NodeContextMenu from './nodes/NodeContextMenu';
@@ -33,11 +41,12 @@ import { useAutoSave } from '../hooks/useAutoSave';
 interface DiagramEditorProps {
     initialContent?: any;
     projectId: string;
+    readOnly?: boolean;
 }
 
-export default function DiagramEditor({ initialContent, projectId }: DiagramEditorProps) {
+export default function DiagramEditor({ initialContent, projectId, readOnly = false }: DiagramEditorProps) {
     useCollaboration(projectId);
-    useAutoSave(projectId); // Enable Auto-Save
+    useAutoSave(projectId, !readOnly); // Disable Auto-Save if ReadOnly
     const initialized = useRef(false);
     const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
     const [schemaInboxOpen, setSchemaInboxOpen] = useState(false);
@@ -102,13 +111,13 @@ export default function DiagramEditor({ initialContent, projectId }: DiagramEdit
         searchTerm
     } = useCanvasStore();
 
-    // Focus Mode & Search Logic
+    // Search & Filter
     const { displayNodes, displayEdges } = useMemo(() => {
         let activeNodeIds = new Set<string>();
         let activeEdgeIds = new Set<string>();
         let isFiltering = false;
 
-        // 1. Search Filter
+        // By Term
         if (searchTerm && searchTerm.trim().length > 0) {
             isFiltering = true;
             const lowerTerm = searchTerm.toLowerCase();
@@ -116,15 +125,13 @@ export default function DiagramEditor({ initialContent, projectId }: DiagramEdit
                 if (n.data.label.toLowerCase().includes(lowerTerm)) {
                     activeNodeIds.add(n.id);
                 }
-                // Also search fields
                 if (n.data.fields?.some((f: any) => f.name.toLowerCase().includes(lowerTerm))) {
                     activeNodeIds.add(n.id);
                 }
             });
         }
 
-        // 2. Selection Filter (Focus Mode) - override search if selection is active? 
-        // Or maybe only if NOT searching. Let's prioritize Search if active.
+        // By Selection
         if (selectedNodeId && !isFiltering) {
             isFiltering = true;
             const { nodeIds, edgeIds } = getConnectedElements(selectedNodeId);
@@ -150,7 +157,7 @@ export default function DiagramEditor({ initialContent, projectId }: DiagramEdit
                 style: {
                     ...e.style,
                     opacity: isActive ? 1 : 0.05,
-                    stroke: isActive ? (e.style?.stroke) : '#e2e8f0', // Dim color
+                    stroke: isActive ? (e.style?.stroke) : '#e2e8f0',
                 },
                 animated: isActive ? true : e.animated,
             };
@@ -351,42 +358,35 @@ export default function DiagramEditor({ initialContent, projectId }: DiagramEdit
 
             {/* Editor Toolbar */}
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-                <div className="bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-xl border border-white/20 ring-1 ring-black/5 space-y-2 w-48 transition-all hover:bg-white/95">
-                    <Button onClick={addTable} size="sm" className="w-full shadow-sm">
-                        <Plus className="w-4 h-4 mr-2" />
-                        {isMongo ? 'Add Collection' : 'Add Table'}
-                    </Button>
-                    <Button
-                        onClick={() => setSchemaInboxOpen(true)}
-                        size="sm"
-                        variant="outline"
-                        className="w-full shadow-sm"
-                    >
-                        <FileInput className="w-4 h-4 mr-2" />
-                        Import Schema
-                    </Button>
-                    <Button
-                        onClick={() => setImportDialogOpen(true)}
-                        size="sm"
-                        variant="outline"
-                        className="w-full shadow-sm"
-                    >
-                        <Database className="w-4 h-4 mr-2" />
-                        Connect DB
-                    </Button>
-
-
-
-                    <Button
-                        onClick={() => setHistoryOpen(true)}
-                        size="sm"
-                        variant="outline"
-                        className="w-full shadow-sm"
-                    >
-                        <History className="w-4 h-4 mr-2" />
-                        History
-                    </Button>
-                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="shadow-lg bg-white/90 backdrop-blur border-white/20 hover:bg-white">
+                            <Menu className="w-4 h-4 mr-2" />
+                            Actions
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56 ml-2 mt-1 bg-white/95 backdrop-blur-xl border-slate-100 shadow-xl">
+                        <DropdownMenuLabel>Canvas Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={addTable} className="cursor-pointer">
+                            <Plus className="w-4 h-4 mr-2 text-blue-500" />
+                            {isMongo ? 'Add Collection' : 'Add Table'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setSchemaInboxOpen(true)} className="cursor-pointer">
+                            <FileInput className="w-4 h-4 mr-2 text-purple-500" />
+                            Import Schema
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setImportDialogOpen(true)} className="cursor-pointer">
+                            <Database className="w-4 h-4 mr-2 text-green-500" />
+                            Connect DB
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setHistoryOpen(true)} className="cursor-pointer">
+                            <History className="w-4 h-4 mr-2 text-orange-500" />
+                            History
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             <div className="absolute bottom-4 left-4 z-10 text-xs text-gray-400 pointer-events-none">

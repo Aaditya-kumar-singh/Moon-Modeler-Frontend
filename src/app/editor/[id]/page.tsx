@@ -9,8 +9,13 @@ import DiagramEditor from '@/features/editor/components/DiagramEditor';
 import PropertiesPanel from '@/features/editor/components/PropertiesPanel';
 import ImportDialog from '@/features/editor/components/ImportDialog';
 import { useCanvasStore } from '@/features/editor/stores/canvasStore';
-import { Loader2, Download, Database, Code, Search } from 'lucide-react';
+import { Loader2, Download, Database, Code, Search, UserPlus, Users } from 'lucide-react';
 import CodePreviewPanel from '@/features/editor/components/CodePreviewPanel';
+import MobileMenu from '@/features/editor/components/MobileMenu';
+// import InviteMemberDialog from '@/features/teams/components/InviteMemberDialog'; // Removed for Project Share
+// import TeamMembersDialog from '@/features/teams/components/TeamMembersDialog'; // Removed for Project Share
+import ShareProjectDialog from '@/features/projects/components/ShareProjectDialog';
+import { useTeamStore } from '@/features/teams/stores/teamStore';
 import { cn } from '@/lib/utils/cn';
 
 export default function EditorPage() {
@@ -23,6 +28,10 @@ export default function EditorPage() {
     const [error, setError] = useState<string | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [codePreviewOpen, setCodePreviewOpen] = useState(false);
+    const [shareOpen, setShareOpen] = useState(false);
+    // const [showInviteDialog, setShowInviteDialog] = useState(false);
+    // const [showMembersDialog, setShowMembersDialog] = useState(false);
+    const { currentTeam } = useTeamStore();
 
     // Single declaration
     const { metadata } = useCanvasStore();
@@ -177,13 +186,17 @@ export default function EditorPage() {
                         <ArrowLeft className={cn("w-4 h-4 mr-2", styles.icon)} />
                         Back
                     </Button>
-                    <div>
-                        <h1 className={cn("font-semibold transition-colors", styles.text)}>{project?.name}</h1>
-                        <span className={cn("text-xs uppercase transition-colors", styles.subText)}>{project?.type}</span>
+                    <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-md" />
+                        <div>
+                            <h1 className={cn("font-semibold transition-colors", styles.text)}>{project?.name}</h1>
+                            <span className={cn("text-xs uppercase transition-colors", styles.subText)}>{project?.type}</span>
+                        </div>
                     </div>
                 </div>
-                <div>
-                    {/* Toolbar Actions */}
+                {/* Desktop Toolbar (Hidden on Mobile/Tablet) */}
+                <div className="hidden lg:flex items-center gap-2">
                     <div className={cn("inline-flex items-center gap-2 mr-4 border-r pr-4", styles.border)}>
                         <select
                             className={cn("text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-1 transition-all cursor-pointer", styles.input)}
@@ -213,7 +226,7 @@ export default function EditorPage() {
                         <input
                             type="text"
                             placeholder="Search nodes..."
-                            className={cn("pl-8 pr-4 py-1 text-xs border rounded focus:outline-none focus:ring-1 transition-colors w-32 focus:w-56 transition-all", styles.input)}
+                            className={cn("pl-8 pr-4 py-1 text-xs border rounded focus:outline-none focus:ring-1 transition-colors w-32 focus:w-48 xl:w-56 transition-all", styles.input)}
                             onChange={(e) => useCanvasStore.getState().setSearchTerm(e.target.value)}
                         />
                     </div>
@@ -230,7 +243,19 @@ export default function EditorPage() {
                         <Download className={cn("w-4 h-4 mr-2", styles.icon)} />
                         Export
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className={cn("transition-colors", styles.button)}>
+
+                    <Button variant="outline" size="sm" onClick={() => setShareOpen(true)} className={cn("mr-2 transition-colors", styles.button)}>
+                        <Users className={cn("w-4 h-4 mr-2", styles.icon)} />
+                        Share
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSave}
+                        disabled={saving || (project as any)?.currentUserRole === 'VIEWER'}
+                        className={cn("transition-colors", styles.button)}
+                    >
                         {saving ? (
                             <>
                                 <Loader2 className={cn("w-4 h-4 mr-2 animate-spin", styles.icon)} />
@@ -239,18 +264,34 @@ export default function EditorPage() {
                         ) : 'Save'}
                     </Button>
                 </div>
+
+                {/* Mobile Menu (Visible on Mobile/Tablet) */}
+                <MobileMenu
+                    onImport={() => setImportOpen(true)}
+                    onExport={handleExport}
+                    onCode={() => setCodePreviewOpen(true)}
+                    onShare={() => setShareOpen(true)}
+                    onSave={handleSave}
+                    saving={saving}
+                    readOnly={(project as any)?.currentUserRole === 'VIEWER'}
+                    styles={styles}
+                />
             </div>
 
 
             <div className={cn("flex-1 relative overflow-hidden flex", styles.container)}>
                 <div className="flex-1 relative">
-                    <DiagramEditor projectId={id} initialContent={{
-                        ...project.content,
-                        metadata: {
-                            ...(project.content?.metadata || {}),
-                            dbType: project.type
-                        }
-                    }} />
+                    <DiagramEditor
+                        projectId={id}
+                        readOnly={(project as any)?.currentUserRole === 'VIEWER'}
+                        initialContent={{
+                            ...project.content,
+                            metadata: {
+                                ...(project.content?.metadata || {}),
+                                dbType: project.type
+                            }
+                        }}
+                    />
                 </div>
                 <PropertiesPanel />
             </div>
@@ -267,6 +308,7 @@ export default function EditorPage() {
                 )
             }
             <CodePreviewPanel open={codePreviewOpen} onClose={() => setCodePreviewOpen(false)} />
+            <ShareProjectDialog open={shareOpen} onClose={() => setShareOpen(false)} />
         </div >
     );
 }

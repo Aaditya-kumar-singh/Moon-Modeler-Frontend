@@ -27,8 +27,9 @@ export default function SchemaInboxPanel({ onClose }: SchemaInboxPanelProps) {
     const [inputText, setInputText] = useState('');
     const [parsedSchema, setParsedSchema] = useState<ParsedSchema | null>(null);
     const [flattenNested, setFlattenNested] = useState(false);
+    const [mergeMode, setMergeMode] = useState(true);
 
-    const { addTable, metadata } = useCanvasStore();
+    const { addTable, metadata, nodes } = useCanvasStore();
 
     // Detect schema format
     const detectFormat = (text: string): SchemaFormat => {
@@ -88,53 +89,93 @@ export default function SchemaInboxPanel({ onClose }: SchemaInboxPanelProps) {
         const COLUMNS = 3;
         const createdNodesMap = new Map<string, Node<TableNodeData>>();
 
+        // Helper to find existing node by label (table/collection name)
+        const findExistingNode = (label: string) => nodes.find(n => n.data.label === label);
+
         if (parsedSchema.format === 'mongodb' && parsedSchema.mongoSchemas) {
             parsedSchema.mongoSchemas.forEach((schema, index) => {
+                const existing = findExistingNode(schema.name);
                 const fields = MongoDocumentParser.toDiagramFields(schema.fields, flattenNested);
-                const newNode: Node<TableNodeData> = {
-                    id: `imported_${schema.name}_${Date.now()}_${index}`,
-                    type: 'mongoCollection',
-                    position: { x: START_X + (index % COLUMNS) * GRID_GAP, y: START_Y + Math.floor(index / COLUMNS) * GRID_GAP },
-                    data: { label: schema.name, fields }
-                };
-                useCanvasStore.getState().handleLocalEvent({
-                    type: 'NODE_ADDED',
-                    node: newNode,
-                    projectId: useCanvasStore.getState().projectId || 'unknown',
-                    actorId: 'local',
-                    timestamp: Date.now()
-                });
+
+                if (mergeMode && existing) {
+                    // Update existing node data (preserve ID and Position)
+                    useCanvasStore.setState(state => ({
+                        nodes: state.nodes.map(n => n.id === existing.id ? {
+                            ...n,
+                            data: { ...n.data, fields } // Overwrite fields
+                        } : n)
+                    }));
+                } else {
+                    // Create new node
+                    const newNode: Node<TableNodeData> = {
+                        id: `imported_${schema.name}_${Date.now()}_${index}`,
+                        type: 'mongoCollection',
+                        position: { x: START_X + (index % COLUMNS) * GRID_GAP, y: START_Y + Math.floor(index / COLUMNS) * GRID_GAP },
+                        data: { label: schema.name, fields }
+                    };
+                    useCanvasStore.getState().handleLocalEvent({
+                        type: 'NODE_ADDED',
+                        node: newNode,
+                        projectId: useCanvasStore.getState().projectId || 'unknown',
+                        actorId: 'local',
+                        timestamp: Date.now()
+                    });
+                }
             });
             onClose();
         } else if (parsedSchema.format === 'mysql' && parsedSchema.sqlTables) {
             parsedSchema.sqlTables.forEach((table, index) => {
+                const existing = findExistingNode(table.name);
                 const fields = SQLDDLParser.toDiagramFields(table.fields);
                 table.foreignKeys.forEach(fk => {
                     const field = fields.find(f => f.name === fk.sourceColumn);
                     if (field) { field.isForeignKey = true; }
                 });
-                const newNode: Node<TableNodeData> = {
-                    id: `imported_${table.name}_${Date.now()}_${index}`,
-                    type: 'mysqlTable',
-                    position: { x: START_X + (index % COLUMNS) * GRID_GAP, y: START_Y + Math.floor(index / COLUMNS) * GRID_GAP },
-                    data: { label: table.name, fields }
-                };
-                createdNodesMap.set(table.name, newNode);
-                useCanvasStore.getState().handleLocalEvent({
-                    type: 'NODE_ADDED',
-                    node: newNode,
-                    projectId: useCanvasStore.getState().projectId || 'unknown',
-                    actorId: 'local',
-                    timestamp: Date.now()
-                });
+
+                if (mergeMode && existing) {
+                    // Update existing node
+                    useCanvasStore.setState(state => ({
+                        nodes: state.nodes.map(n => n.id === existing.id ? {
+                            ...n,
+                            data: { ...n.data, fields }
+                        } : n)
+                    }));
+                    createdNodesMap.set(table.name, existing); // Map to existing node for edges logic
+                } else {
+                    // Create new node
+                    const newNode: Node<TableNodeData> = {
+                        id: `imported_${table.name}_${Date.now()}_${index}`,
+                        type: 'mysqlTable',
+                        position: { x: START_X + (index % COLUMNS) * GRID_GAP, y: START_Y + Math.floor(index / COLUMNS) * GRID_GAP },
+                        data: { label: table.name, fields }
+                    };
+                    createdNodesMap.set(table.name, newNode);
+                    useCanvasStore.getState().handleLocalEvent({
+                        type: 'NODE_ADDED',
+                        node: newNode,
+                        projectId: useCanvasStore.getState().projectId || 'unknown',
+                        actorId: 'local',
+                        timestamp: Date.now()
+                    });
+                }
             });
 
+            // Re-run edge creation (will trigger edge add, might need de-dupe logic or just let it add multiple?)
+            // If we merged, we might want to AVOID adding duplicate edges.
+            // Edge ID generation is random/time-based, so it WILL add duplicates.
+            // We should check if edge exists.
             parsedSchema.sqlTables.forEach((table) => {
                 const sourceNode = createdNodesMap.get(table.name);
                 if (!sourceNode) return;
                 table.foreignKeys.forEach(fk => {
                     const targetNode = createdNodesMap.get(fk.targetTable);
                     if (!targetNode) return;
+
+                    // Check if connection already exists (simple check)
+                    const edges = useCanvasStore.getState().edges;
+                    const exists = edges.some(e => e.source === sourceNode.id && e.target === targetNode.id);
+                    if (mergeMode && exists) return; // Skip if merging and edge exists
+
                     const sourceField = sourceNode.data.fields.find(f => f.name === fk.sourceColumn);
                     const targetField = targetNode.data.fields.find(f => f.name === fk.targetColumn);
                     if (sourceField && targetField) {
@@ -167,6 +208,13 @@ export default function SchemaInboxPanel({ onClose }: SchemaInboxPanelProps) {
             onClose();
         }
     };
+
+    // Calculate Conflicts
+    const existingCount = parsedSchema ? (
+        parsedSchema.format === 'mongodb'
+            ? parsedSchema.mongoSchemas?.filter(s => nodes.some(n => n.data.label === s.name)).length
+            : parsedSchema.sqlTables?.filter(t => nodes.some(n => n.data.label === t.name)).length
+    ) : 0;
 
     // Theme Logic for Schema Inbox
     const getThemeStyles = () => {
@@ -402,18 +450,37 @@ export default function SchemaInboxPanel({ onClose }: SchemaInboxPanelProps) {
                 </div>
 
                 {/* Footer */}
-                <div className={cn("px-6 py-4 border-t flex items-center justify-end gap-2", styles.footer)}>
-                    <Button onClick={onClose} variant="outline" className={cn("transition-colors", styles.button)}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleAddToCanvas}
-                        disabled={!parsedSchema || !!parsedSchema.error}
-                        className="flex items-center gap-2"
-                    >
-                        <Database className="w-4 h-4" />
-                        Add to Canvas
-                    </Button>
+                <div className={cn("px-6 py-4 border-t flex items-center justify-between", styles.footer)}>
+                    <div className="flex items-center gap-4">
+                        <label className={cn("flex items-center gap-2 text-sm cursor-pointer select-none", styles.text)}>
+                            <input
+                                type="checkbox"
+                                checked={mergeMode}
+                                onChange={e => setMergeMode(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Merge with existing tables</span>
+                        </label>
+                        {!!existingCount && existingCount > 0 && (
+                            <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full border border-yellow-200 font-medium">
+                                ⚠️ {existingCount} conflict{existingCount > 1 ? 's' : ''} found
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button onClick={onClose} variant="outline" className={cn("transition-colors", styles.button)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleAddToCanvas}
+                            disabled={!parsedSchema || !!parsedSchema.error}
+                            className="flex items-center gap-2"
+                        >
+                            <Database className="w-4 h-4" />
+                            {mergeMode && !!existingCount ? 'Merge to Canvas' : 'Add to Canvas'}
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
