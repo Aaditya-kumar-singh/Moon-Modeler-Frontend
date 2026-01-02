@@ -128,7 +128,7 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Pagination Controls */}
-                        {pagination.totalPages > 1 && (
+                        {pagination && pagination.totalPages > 1 && (
                             <div className="flex justify-center items-center gap-4 py-4">
                                 <Button
                                     variant="outline"

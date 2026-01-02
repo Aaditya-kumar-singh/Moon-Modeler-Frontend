@@ -149,7 +149,7 @@ export default function PropertiesPanel() {
     // Remove all connections for a specific field
     const removeFieldConnections = (nodeId: string, fieldName: string) => {
         const fieldConnections = getFieldConnections(nodeId, fieldName);
-        console.log(`Removing ${fieldConnections.length} connections for field "${fieldName}"`);
+
 
         if (fieldConnections.length > 0) {
             snapshot();
@@ -302,7 +302,7 @@ export default function PropertiesPanel() {
                                             onChange={(e) => updateField(selectedNodeId!, field.id, { type: e.target.value as DataType })}
                                             className={cn("h-7 text-xs border rounded px-1 flex-1 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors", styles.cardInput)}
                                         >
-                                            {currentDataTypes.map(t => <option key={t} value={t} className="text-black">{t}</option>)}
+                                            {currentDataTypes.map(t => <option key={t} value={t} className="bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-200">{t}</option>)}
                                         </select>
 
                                         <div className="flex gap-1">

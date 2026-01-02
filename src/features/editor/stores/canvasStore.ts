@@ -86,6 +86,7 @@ interface CanvasState {
     updateNodeColor: (nodeId: string, color: string) => void;
     setTheme: (theme: any) => void;
     setEdgeStyle: (style: any) => void;
+    setDbType: (dbType: string) => void;
 
     // UI State
     searchTerm: string;
@@ -663,6 +664,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     setEdgeStyle: (edgeStyle: any) => {
         set(state => ({
             metadata: { ...state.metadata, edgeStyle }
+        }));
+    },
+
+    setDbType: (dbType: string) => {
+        set(state => ({
+            metadata: { ...state.metadata, dbType }
         }));
     },
 

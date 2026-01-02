@@ -79,7 +79,7 @@ export default function MobileMenu({
                     <div className="space-y-3">
                         <label className={cn("text-xs font-semibold uppercase", styles.subText)}>Appearance</label>
                         <select
-                            className={cn("w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 text-black", styles.input)}
+                            className={cn("w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 bg-transparent", styles.input)}
                             value={metadata?.theme || 'default'}
                             onChange={(e) => setTheme(e.target.value)}
                         >
@@ -89,7 +89,7 @@ export default function MobileMenu({
                             <option value="dark">Dark Theme</option>
                         </select>
                         <select
-                            className={cn("w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 text-black", styles.input)}
+                            className={cn("w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 bg-transparent", styles.input)}
                             value={metadata?.edgeStyle || 'step'}
                             onChange={(e) => setEdgeStyle(e.target.value)}
                         >

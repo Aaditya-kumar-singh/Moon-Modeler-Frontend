@@ -85,7 +85,10 @@ const MysqlTableNode = ({ data, selected, id }: NodeProps<TableNodeData>) => {
                 {data.fields && data.fields.map((col) => (
                     <div
                         key={col.id}
-                        className="relative flex items-center justify-between text-xs p-1 hover:bg-blue-50 rounded group cursor-default transition-colors"
+                        className={cn(
+                            "relative flex items-center justify-between text-xs p-1 rounded group cursor-default transition-colors",
+                            isDark ? "hover:bg-slate-700" : "hover:bg-blue-50"
+                        )}
                     >
                         {/* Left Handle - Target */}
                         <Handle

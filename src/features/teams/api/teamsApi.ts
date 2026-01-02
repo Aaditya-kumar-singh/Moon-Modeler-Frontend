@@ -15,24 +15,31 @@ export interface TeamMember {
     role: 'OWNER' | 'EDITOR' | 'VIEWER';
 }
 
+interface ApiResponse<T> {
+    success: boolean;
+    data: T;
+    timestamp: string;
+}
+
 export const teamsApi = {
     list: async () => {
-        const response = await api.get<Team[]>('/teams');
-        return response.data;
+        const { data } = await api.get<ApiResponse<Team[]>>('/teams');
+        // Backend returns wrapped response, so we need data.data
+        return data.data;
     },
 
     create: async (name: string) => {
-        const response = await api.post<Team>('/teams', { name });
-        return response.data;
+        const { data } = await api.post<ApiResponse<Team>>('/teams', { name });
+        return data.data;
     },
 
     getMembers: async (teamId: string) => {
-        const response = await api.get<TeamMember[]>(`/teams/${teamId}/members`);
-        return response.data;
+        const { data } = await api.get<ApiResponse<TeamMember[]>>(`/teams/${teamId}/members`);
+        return data.data;
     },
 
     inviteMember: async (teamId: string, email: string, role: TeamMember['role'] = 'VIEWER') => {
-        const response = await api.post(`/teams/${teamId}/members`, { email, role });
-        return response.data;
+        const { data } = await api.post<ApiResponse<any>>(`/teams/${teamId}/members`, { email, role });
+        return data.data;
     }
 };

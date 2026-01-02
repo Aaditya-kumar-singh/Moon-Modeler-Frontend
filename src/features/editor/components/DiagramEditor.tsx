@@ -34,6 +34,7 @@ import NodeContextMenu from './nodes/NodeContextMenu';
 import { cn } from '@/lib/utils/cn';
 import { useSmartGuides } from '../hooks/useSmartGuides';
 import AlignmentGuides from './AlignmentGuides';
+import CanvasEmptyState from './CanvasEmptyState';
 
 import { useCollaboration } from '../hooks/useCollaboration';
 import { useAutoSave } from '../hooks/useAutoSave';
@@ -45,6 +46,20 @@ interface DiagramEditorProps {
 }
 
 export default function DiagramEditor({ initialContent, projectId, readOnly = false }: DiagramEditorProps) {
+    // Suppress React Flow warnings about missing handles (transient during detailed renders)
+    useEffect(() => {
+        const originalError = console.error;
+        console.error = (...args) => {
+            if (typeof args[0] === 'string' && args[0].includes('Couldn\'t create edge for target handle id')) {
+                return;
+            }
+            originalError.apply(console, args);
+        };
+        return () => {
+            console.error = originalError;
+        };
+    }, []);
+
     useCollaboration(projectId);
     useAutoSave(projectId, !readOnly); // Disable Auto-Save if ReadOnly
     const initialized = useRef(false);
@@ -303,6 +318,9 @@ export default function DiagramEditor({ initialContent, projectId, readOnly = fa
                 connectionMode={ConnectionMode.Loose}
                 snapToGrid={true}
                 snapGrid={[15, 15]}
+                onlyRenderVisibleElements={true}
+                minZoom={0.1}
+                maxZoom={4}
             >
                 <AlignmentGuides guides={guides} />
                 <Controls className={cn("backdrop-blur-sm rounded-lg overflow-hidden !m-4 border", getControlsStyle())} />
@@ -317,42 +335,12 @@ export default function DiagramEditor({ initialContent, projectId, readOnly = fa
 
                 {/* Empty State */}
                 {nodes.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className={cn(
-                            "text-center p-8 rounded-2xl border flex flex-col items-center gap-4 pointer-events-auto shadow-sm max-w-sm mx-auto backdrop-blur-sm",
-                            metadata?.theme === 'dark'
-                                ? "bg-slate-800/50 border-slate-700 text-slate-300"
-                                : "bg-white/60 border-gray-200/50 text-gray-500"
-                        )}>
-                            <div className={cn(
-                                "p-4 rounded-full mb-2",
-                                metadata?.theme === 'dark' ? "bg-slate-700/50" : "bg-gray-100/50"
-                            )}>
-                                <Database className="w-8 h-8 opacity-50" />
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className={cn("text-lg font-semibold", metadata?.theme === 'dark' ? "text-slate-200" : "text-gray-800")}>
-                                    Start Designing
-                                </h3>
-                                <p className="text-sm opacity-80 max-w-[240px] leading-relaxed">
-                                    Drag tables, connect fields, or import an existing schema to get started.
-                                </p>
-                            </div>
-                            <div className="flex gap-3 mt-2">
-                                <Button onClick={addTable} size="sm" className={cn(
-                                    "shadow-sm transition-all hover:scale-105 active:scale-95",
-                                    metadata?.theme === 'dark' ? "bg-blue-600 hover:bg-blue-500" : ""
-                                )}>
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Add Table
-                                </Button>
-                                <Button onClick={() => setImportDialogOpen(true)} size="sm" variant="outline" className="shadow-sm transition-all hover:scale-105 active:scale-95">
-                                    <FileInput className="w-4 h-4 mr-2" />
-                                    Import
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                    <CanvasEmptyState
+                        theme={metadata?.theme || 'default'}
+                        isMongo={metadata?.dbType === 'MONGODB'}
+                        onAdd={addTable}
+                        onImport={() => setImportDialogOpen(true)}
+                    />
                 )}
             </ReactFlow>
 

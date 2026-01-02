@@ -222,9 +222,9 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                 onChange={(e) => setRelationshipType(e.target.value as any)}
                                 className={cn("w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2", styles.input)}
                             >
-                                <option value="one-to-one" className="text-black">One to One (1:1)</option>
-                                <option value="one-to-many" className="text-black">One to Many (1:N)</option>
-                                <option value="many-to-many" className="text-black">Many to Many (N:M)</option>
+                                <option value="one-to-one">One to One (1:1)</option>
+                                <option value="one-to-many">One to Many (1:N)</option>
+                                <option value="many-to-many">Many to Many (N:M)</option>
                             </select>
                         </div>
                     </div>
@@ -269,7 +269,7 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                                     className={cn("w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-2", styles.input)}
                                                 >
                                                     {sourceFields.map(field => (
-                                                        <option key={field.id} value={field.name} className="text-black">
+                                                        <option key={field.id} value={field.name}>
                                                             {field.name} ({field.type})
                                                         </option>
                                                     ))}
@@ -286,9 +286,9 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                                     })}
                                                     className={cn("px-2 py-1 text-xs border rounded focus:outline-none focus:ring-2", styles.input)}
                                                 >
-                                                    <option value="1:1" className="text-black">1:1</option>
-                                                    <option value="1:N" className="text-black">1:N</option>
-                                                    <option value="N:M" className="text-black">N:M</option>
+                                                    <option value="1:1">1:1</option>
+                                                    <option value="1:N">1:N</option>
+                                                    <option value="N:M">N:M</option>
                                                 </select>
                                             </div>
 
@@ -305,7 +305,7 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                                     className={cn("w-full px-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-2", styles.input)}
                                                 >
                                                     {targetFields.map(field => (
-                                                        <option key={field.id} value={field.name} className="text-black">
+                                                        <option key={field.id} value={field.name}>
                                                             {field.name} ({field.type})
                                                         </option>
                                                     ))}
@@ -355,10 +355,10 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                         onChange={(e) => setOnDelete(e.target.value as any)}
                                         className={cn("w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2", styles.input)}
                                     >
-                                        <option value="NO ACTION" className="text-black">NO ACTION</option>
-                                        <option value="CASCADE" className="text-black">CASCADE</option>
-                                        <option value="SET NULL" className="text-black">SET NULL</option>
-                                        <option value="RESTRICT" className="text-black">RESTRICT</option>
+                                        <option value="NO ACTION">NO ACTION</option>
+                                        <option value="CASCADE">CASCADE</option>
+                                        <option value="SET NULL">SET NULL</option>
+                                        <option value="RESTRICT">RESTRICT</option>
                                     </select>
                                     <p className={cn("text-xs mt-1", styles.subText)}>
                                         Action when parent record is deleted
@@ -374,10 +374,10 @@ export default function RelationshipEditor({ edge, onClose }: RelationshipEditor
                                         onChange={(e) => setOnUpdate(e.target.value as any)}
                                         className={cn("w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2", styles.input)}
                                     >
-                                        <option value="NO ACTION" className="text-black">NO ACTION</option>
-                                        <option value="CASCADE" className="text-black">CASCADE</option>
-                                        <option value="SET NULL" className="text-black">SET NULL</option>
-                                        <option value="RESTRICT" className="text-black">RESTRICT</option>
+                                        <option value="NO ACTION">NO ACTION</option>
+                                        <option value="CASCADE">CASCADE</option>
+                                        <option value="SET NULL">SET NULL</option>
+                                        <option value="RESTRICT">RESTRICT</option>
                                     </select>
                                     <p className={cn("text-xs mt-1", styles.subText)}>
                                         Action when parent record is updated

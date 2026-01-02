@@ -1,22 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { projectsApi, Project } from '@/features/projects/api/projectsApi';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import DiagramEditor from '@/features/editor/components/DiagramEditor';
-import PropertiesPanel from '@/features/editor/components/PropertiesPanel';
-import ImportDialog from '@/features/editor/components/ImportDialog';
 import { useCanvasStore } from '@/features/editor/stores/canvasStore';
-import { Loader2, Download, Database, Code, Search, UserPlus, Users } from 'lucide-react';
-import CodePreviewPanel from '@/features/editor/components/CodePreviewPanel';
+import { Loader2, Download, Database, Code, Search, Users } from 'lucide-react';
 import MobileMenu from '@/features/editor/components/MobileMenu';
-// import InviteMemberDialog from '@/features/teams/components/InviteMemberDialog'; // Removed for Project Share
-// import TeamMembersDialog from '@/features/teams/components/TeamMembersDialog'; // Removed for Project Share
-import ShareProjectDialog from '@/features/projects/components/ShareProjectDialog';
 import { useTeamStore } from '@/features/teams/stores/teamStore';
 import { cn } from '@/lib/utils/cn';
+
+// Lazy load heavy components
+const DiagramEditor = dynamic(() => import('@/features/editor/components/DiagramEditor'), {
+    ssr: false,
+    loading: () => <div className="h-full w-full bg-slate-50 animate-pulse" />
+});
+const PropertiesPanel = dynamic(() => import('@/features/editor/components/PropertiesPanel'), { ssr: false });
+const ImportDialog = dynamic(() => import('@/features/editor/components/ImportDialog'), { ssr: false });
+const CodePreviewPanel = dynamic(() => import('@/features/editor/components/CodePreviewPanel'), { ssr: false });
+const ShareProjectDialog = dynamic(() => import('@/features/projects/components/ShareProjectDialog'), { ssr: false });
 
 export default function EditorPage() {
     const params = useParams();

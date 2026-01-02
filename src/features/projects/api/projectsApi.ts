@@ -45,11 +45,25 @@ export const projectsApi = {
      * Get all projects for the current user
      */
     async getAll(params: ProjectParams = {}): Promise<{ projects: Project[], meta: any }> {
-        const { data } = await api.get<ApiResponse<PaginatedResponse<Project>>>('/projects', { params });
-        // Backend returns { projects: [], meta: {} }
+        // Backend returns: 
+        // { success: true, data: { projects: [...], total: 5, page: 1, limit: 10, pages: 1 } }
+        // Axios (api.get) returns { data: ... }
+        // So we get: data.data which is the object above.
+
+        const { data } = await api.get<ApiResponse<any>>('/projects', { params });
+
+        // This 'data.data' is the object containing { projects, total, page... }
+        // It is NOT nested under another 'data' key inside it.
+        const result = data.data;
+
         return {
-            projects: data.data.projects || [],
-            meta: data.data.meta
+            projects: result.projects || [],
+            meta: {
+                total: result.total || 0,
+                page: result.page || 1,
+                limit: result.limit || 10,
+                totalPages: result.pages || 0
+            }
         };
     },
 
